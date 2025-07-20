@@ -4,9 +4,26 @@
 
 import { useState, useEffect } from "react"
 import { db } from "./firebase"
-import { doc, getDoc, setDoc } from "firebase/firestore"
+
+async function fetchStreak(setStreak, setMoney) {
+  const q = query(collection(db, 'records'), orderBy('__name__', 'desc'))
+  const snap = await getDocs(q)
+  const map = new Map()
+  snap.forEach(d => map.set(d.id, d.data().success))
+  let count = 0
+  let cur = dayjs()
+  while (map.get(cur.format('YYYY-MM-DD'))) {
+    count++; cur = cur.subtract(1, 'day')
+  }
+  setStreak(count)
+  setMoney(count * 600)
+}
+import { collection, getDocs, query, orderBy, doc, getDoc, setDoc } from "firebase/firestore"
 import dayjs from "dayjs"
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
+
+dayjs.extend(isSameOrBefore)
 
 export default function Dashboard() {
   const [quitDate, setQuitDate] = useState<string>("")
@@ -32,6 +49,8 @@ export default function Dashboard() {
     setStreak(days)
     setMoney(days * 600) // ←1 日 600 円と仮定
   }, [quitDate])
+
+  useEffect(() => { fetchStreak(setStreak, setMoney) }, [])
 
   // ★ カレンダー変更 → Firestore に保存
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,6 +98,7 @@ export default function Dashboard() {
       const today = dayjs().format("YYYY-MM-DD");
       await setDoc(doc(db, "records", today), { success: true });
       alert("Great! 今日も吸わなかったね 🎉");
+      await fetchStreak(setStreak,setMoney)
     }}
     className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center space-x-2"
   >
@@ -92,6 +112,7 @@ export default function Dashboard() {
       const today = dayjs().format("YYYY-MM-DD");
       await setDoc(doc(db, "records", today), { success: false });
       alert("深呼吸… 落ち着いて！🙌");
+      await fetchStreak(setStreak,setMoney)
     }}
     className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 flex items-center space-x-2"
   >
