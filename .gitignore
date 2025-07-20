@@ -67,4 +67,5 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
-text\n# 追記\n.env*\n/tmp-next-app/\n
+text\n# 追記\n.env*\n/tmp-next-app/
+.next/\n

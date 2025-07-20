@@ -12,13 +12,13 @@ async function fetchStreak(setStreak, setMoney, price) {
   snap.forEach(d => map.set(d.id, d.data().success))
   let count = 0
   let cur = dayjs()
-  while (map.get(cur.format('YYYY-MM-DD'))) {
+  while (map.get(cur.format('YYYY-MM-DD')) === true) {
     count++; cur = cur.subtract(1, 'day')
   }
   setStreak(count)
   setMoney(count * price)
 }
-import { collection, getDocs, query, orderBy, doc, getDoc, setDoc } from "firebase/firestore"
+import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, where, deleteDoc } from "firebase/firestore"
 import dayjs from "dayjs"
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
@@ -30,8 +30,9 @@ export default function Dashboard() {
   const [streak,  setStreak]    = useState<number>(0)
   const [money,   setMoney]     = useState<number>(0)
   const [price,   setPrice]     = useState<number>(600)
+  const [smoked,  setSmoked]    = useState<boolean | null>(null)
 
-  // ★ 最初に Firestore から各種設定を読み込む
+  // ★ 最初に Firestore から各種設定と今日の喫煙状況を読み込む
   useEffect(() => {
     const load = async () => {
       const ref = doc(db, "userConfig", "default")
@@ -40,6 +41,15 @@ export default function Dashboard() {
         const data = snap.data()
         setQuitDate(data.quitDate || "")
         setPrice(data.price || 600)
+      }
+
+      const today = dayjs().format("YYYY-MM-DD")
+      const recordRef = doc(db, "records", today)
+      const recordSnap = await getDoc(recordRef)
+      if (recordSnap.exists()) {
+        setSmoked(recordSnap.data().success === false)
+      } else {
+        setSmoked(null)
       }
     }
     load()
@@ -59,6 +69,15 @@ export default function Dashboard() {
     const val = e.target.value
     setQuitDate(val)
     await setDoc(doc(db, "userConfig", "default"), { quitDate: val }, { merge: true })
+
+    // 禁煙開始日以降の記録を削除
+    const q = query(collection(db, 'records'), where('__name__', '>=', val))
+    const snap = await getDocs(q)
+    snap.forEach(async (d) => {
+      await deleteDoc(doc(db, 'records', d.id))
+    })
+
+    await fetchStreak(setStreak, setMoney, price)
   }
 
   // ★ 価格変更 → Firestore に保存
@@ -66,6 +85,14 @@ export default function Dashboard() {
     const newPrice = Number(e.target.value)
     setPrice(newPrice)
     await setDoc(doc(db, "userConfig", "default"), { price: newPrice }, { merge: true })
+  }
+
+  // ★ 喫煙状況を Firestore に保存
+  const handleSmoke = async (smoked: boolean) => {
+    const today = dayjs().format("YYYY-MM-DD")
+    await setDoc(doc(db, "records", today), { success: !smoked }, { merge: true })
+    setSmoked(smoked)
+    await fetchStreak(setStreak, setMoney, price)
   }
 
   return (
@@ -111,32 +138,32 @@ export default function Dashboard() {
         </section>
       </div>
     {/* Action Buttons */}
-<div className="flex justify-center gap-6 pt-8">
-  {/* 成功ボタン */}
-  <button
-    onClick={async () => {
-      const today = dayjs().format("YYYY-MM-DD");
-      await setDoc(doc(db, "records", today), { success: true }, { merge: true });
-      alert("Great! 今日も吸わなかったね 🎉");
-      await fetchStreak(setStreak, setMoney, price)
-    }}
-    className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center space-x-2"
-  >
-    <CheckCircleIcon className="h-5 w-5" />
-    <span>今日吸わなかった</span>
-  </button>
-
-  {/* 衝動ボタン */}
-  <button
-    onClick={() => {
-      alert("深呼吸… 落ち着いて！その気持ち、乗り越えられます！🙌");
-    }}
-    className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 flex items-center space-x-2"
-  >
-    <FireIcon className="h-5 w-5" />
-    <span>吸いたい衝動が来た</span>
-  </button>
-</div>
+      <div className="flex justify-center gap-6 pt-8">
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="notSmoked"
+            checked={smoked === false}
+            onChange={() => handleSmoke(false)}
+            className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+          />
+          <label htmlFor="notSmoked" className="ml-2 text-lg">
+            今日吸わなかった
+          </label>
+        </div>
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="smoked"
+            checked={smoked === true}
+            onChange={() => handleSmoke(true)}
+            className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+          />
+          <label htmlFor="smoked" className="ml-2 text-lg">
+            吸ってしまった
+          </label>
+        </div>
+      </div>
 </main>
   )
 }
