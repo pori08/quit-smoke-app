@@ -4,6 +4,13 @@
 
 import { useState, useEffect } from "react"
 import { db } from "./firebase"
+import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, where, deleteDoc } from "firebase/firestore"
+import dayjs from "dayjs"
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
+import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
+import toast from 'react-hot-toast'
+
+dayjs.extend(isSameOrBefore)
 
 async function fetchStreak(setStreak, setMoney, price) {
   const q = query(collection(db, 'records'), orderBy('__name__', 'desc'))
@@ -18,12 +25,6 @@ async function fetchStreak(setStreak, setMoney, price) {
   setStreak(count)
   setMoney(count * price)
 }
-import { collection, getDocs, query, orderBy, doc, getDoc, setDoc, where, deleteDoc } from "firebase/firestore"
-import dayjs from "dayjs"
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
-import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
-
-dayjs.extend(isSameOrBefore)
 
 export default function Dashboard() {
   const [quitDate, setQuitDate] = useState<string>("")
@@ -58,11 +59,8 @@ export default function Dashboard() {
   // ★ quitDate が変わるたび Streak を計算
   useEffect(() => {
     if (!quitDate) return
-    const days = dayjs().diff(dayjs(quitDate), "day")
-    setStreak(days)
-  }, [quitDate])
-
-  useEffect(() => { fetchStreak(setStreak, setMoney, price) }, [price])
+    fetchStreak(setStreak, setMoney, price)
+  }, [quitDate, price])
 
   // ★ カレンダー変更 → Firestore に保存
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,6 +90,11 @@ export default function Dashboard() {
     const today = dayjs().format("YYYY-MM-DD")
     await setDoc(doc(db, "records", today), { success: !smoked }, { merge: true })
     setSmoked(smoked)
+    if (smoked) {
+      toast.error('深呼吸して落ち着こう')
+    } else {
+      toast.success('記録しました！')
+    }
     await fetchStreak(setStreak, setMoney, price)
   }
 

@@ -1,0 +1,1 @@
+feat: Update smoking record to checkbox and fix data persistence and streak calculation
