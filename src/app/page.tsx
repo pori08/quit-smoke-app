@@ -1,9 +1,14 @@
-/* ここからコピー */
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { db } from "./firebase"
+import { collection, getDocs, query, orderBy, doc, getDoc, setDoc } from "firebase/firestore"
+import dayjs from "dayjs"
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
+import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
+import toast from 'react-hot-toast'
+
+dayjs.extend(isSameOrBefore)
 
 async function fetchStreak(setStreak, setMoney, price) {
   const q = query(collection(db, 'records'), orderBy('__name__', 'desc'))
@@ -12,18 +17,12 @@ async function fetchStreak(setStreak, setMoney, price) {
   snap.forEach(d => map.set(d.id, d.data().success))
   let count = 0
   let cur = dayjs()
-  while (map.get(cur.format('YYYY-MM-DD'))) {
+  while (map.get(cur.format('YYYY-MM-DD')) === true) {
     count++; cur = cur.subtract(1, 'day')
   }
   setStreak(count)
   setMoney(count * price)
 }
-import { collection, getDocs, query, orderBy, doc, getDoc, setDoc } from "firebase/firestore"
-import dayjs from "dayjs"
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
-import { CheckCircleIcon, FireIcon } from '@heroicons/react/24/solid'
-
-dayjs.extend(isSameOrBefore)
 
 export default function Dashboard() {
   const [quitDate, setQuitDate] = useState<string>("")
@@ -48,11 +47,8 @@ export default function Dashboard() {
   // ★ quitDate が変わるたび Streak を計算
   useEffect(() => {
     if (!quitDate) return
-    const days = dayjs().diff(dayjs(quitDate), "day")
-    setStreak(days)
-  }, [quitDate])
-
-  useEffect(() => { fetchStreak(setStreak, setMoney, price) }, [price])
+    fetchStreak(setStreak, setMoney, price)
+  }, [quitDate, price])
 
   // ★ カレンダー変更 → Firestore に保存
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,7 +113,7 @@ export default function Dashboard() {
     onClick={async () => {
       const today = dayjs().format("YYYY-MM-DD");
       await setDoc(doc(db, "records", today), { success: true }, { merge: true });
-      alert("Great! 今日も吸わなかったね 🎉");
+      toast.success('記録しました！');
       await fetchStreak(setStreak, setMoney, price)
     }}
     className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 flex items-center space-x-2"
@@ -128,8 +124,11 @@ export default function Dashboard() {
 
   {/* 衝動ボタン */}
   <button
-    onClick={() => {
-      alert("深呼吸… 落ち着いて！その気持ち、乗り越えられます！🙌");
+    onClick={async () => {
+      const today = dayjs().format("YYYY-MM-DD");
+      await setDoc(doc(db, "records", today), { success: false }, { merge: true });
+      toast.error('深呼吸して落ち着こう');
+      await fetchStreak(setStreak, setMoney, price)
     }}
     className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 flex items-center space-x-2"
   >
@@ -140,5 +139,3 @@ export default function Dashboard() {
 </main>
   )
 }
-
-/* ここまでコピー */
